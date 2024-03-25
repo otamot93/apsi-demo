@@ -11,9 +11,13 @@
 # Build
 
 ## Install Dependency
-## Project Modification
 
-**CMakePresets.json**
-change value of  key `CMAKE_TOOLCHAIN_FILE ` to real path in system.eg:"/Users/mac/vcpkg/scripts/buildsystems/vcpkg.cmake"
-
+```
+vcpkg install
+```
+## Build
+```
+cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE={{VCPKG_ROOT}}/scripts/buildsystems/vcpkg.cmake
+cmake --build build
+```
 

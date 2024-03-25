@@ -5,7 +5,7 @@
       "name": "default",
       "binaryDir": "${sourceDir}/build",
       "cacheVariables": {
-        "CMAKE_TOOLCHAIN_FILE": "{{VCPKG_HOME}}/buildsystems/vcpkg.cmake"
+        "CMAKE_TOOLCHAIN_FILE": "{{VCPKG_ROOT}}/scripts/buildsystems/vcpkg.cmake"
       }
     }
   ]

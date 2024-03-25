@@ -5,6 +5,7 @@
 // std
 #include <iostream>
 #include <fstream>
+#include <signal.h>
 
 // absl
 #include <absl/log/log.h>
@@ -17,7 +18,7 @@
 #include <apsi/zmq/sender_dispatcher.h>
 
 // common
-# include "common/csv_reader.h";
+# include "common/csv_reader.h"
 
 using namespace std;
 
