@@ -1,0 +1,28 @@
+@startuml
+sender-> sender: create PSIParams from json file
+note right: use PSIParam::Load()
+sender -> sender: load items from csv file
+sender -> sender: create SenderDb from PSIParams and items
+note right: use sender_db->set_data()
+sender -> sender: get oprf_key from SenderDb;
+note right: use sender_db->strip()
+sender -> sender: start ZMQ tcp port
+
+receiver -> sender: connect to ZMQ port
+sender -->receiver: connected
+
+receiver-> sender:sending  PSIParams request
+note right: use Receiver::RequestParams()
+sender --> receiver: return PSIParams
+receiver -> receiver: load items from csv file
+receiver -> receiver: sending OPRF request to deal items
+note right: use Receiver::RequestOPRF()
+receiver -> sender: sending query request
+note right: use receiver.request_query
+sender --> receiver: return match records
+receiver -> receiver: write intersection result to csv
+receiver -> receiver: print transmitted data size
+
+
+
+@enduml
