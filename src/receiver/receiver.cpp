@@ -30,6 +30,7 @@ using namespace apsi::network;
 ABSL_FLAG(string,query_path,"./query.csv","query file path" );
 ABSL_FLAG(string,result_path,"./result.csv","result file path" );
 ABSL_FLAG(uint32_t ,thread,10,"Number of threads");
+ABSL_FLAG(string,sender_address,"127.0.0.1:1212","The address of sender");
 
 // load db from csv
 pair<unique_ptr<CSVReader::DBData>,vector<string>> load_db(const string &db_file);
@@ -57,7 +58,8 @@ int main(int argc,char** argv){
 
     absl::ParseCommandLine(argc,argv);
     // connect network
-    string conn_address = "tcp://127.0.0.1:1212";
+    string sender_address = absl::GetFlag(FLAGS_sender_address);
+    string conn_address = "tcp://" + sender_address;
 //    std::cout << "hello world" << std::endl;
     apsi::Log::SetLogLevel(apsi::Log::Level::all);
     APSI_LOG_INFO("Connection to " << conn_address);

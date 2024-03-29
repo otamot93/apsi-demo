@@ -37,12 +37,29 @@ ABSL_FLAG(std::string,params_path,"./params.json","params file path");
 ABSL_FLAG(std::string,db_path,"./db.csv","db file path");
 ABSL_FLAG(uint32_t ,noce_byte_count,16,"Number of bytes used for the nonce in labeled mode (default is 16)");
 ABSL_FLAG(bool,compress,false,"Whether to compress the SenderDB in memory(default is false)");
+ABSL_FLAG(std::string,sdb_output_path,"","The Path of sdb save file(if is not empty)");
 
 
 
 
 int startSender();
-shared_ptr<SenderDB> try_load_csv_db(OPRFKey &oprf_key);
+
+/**
+ * 从SenderDB文件中读取
+ * @param db_path
+ * @param oprf_key
+ * @return
+ */
+shared_ptr<SenderDB> try_load_sender_db(string db_path,OPRFKey &oprf_key);
+
+/**
+ * 从csv文件中读取
+ * @param db_path
+ * @param oprf_key
+ * @return
+ */
+shared_ptr<SenderDB> try_load_csv_db(string db_path,OPRFKey &oprf_key);
+
 
 unique_ptr<PSIParams> build_psi_param();
 
@@ -70,6 +87,14 @@ shared_ptr<SenderDB> create_sender_db(
         bool compress
         );
 
+/**
+ * 保存sender db
+ * @param sdb_output_path
+ * @param sender_db
+ * @param oprf_key
+ * @return
+ */
+bool try_save_sender_db(const string sdb_output_path,shared_ptr<SenderDB> sender_db,const OPRFKey oprf_key);
 
 void sigint_handle(int param [[maybe_unused]]){
     APSI_LOG_WARNING( "Sender interupted");
@@ -92,8 +117,21 @@ int startSender(){
     ThreadPoolMgr::SetThreadCount(absl::GetFlag(FLAGS_thread));
     APSI_LOG_INFO("setting thread to " << ThreadPoolMgr::GetThreadCount());
 
+    // sender db 数据或原始csv数据
+    string db_path = absl::GetFlag(FLAGS_db_path);
     OPRFKey oprf_key;
-    shared_ptr<SenderDB> sender_db = try_load_csv_db(oprf_key);
+    shared_ptr<SenderDB> sender_db;
+
+    bool reload_from_sender_db = false;
+
+    if(!(sender_db = try_load_sender_db(db_path,oprf_key))){
+        if(!(sender_db = try_load_csv_db(db_path,oprf_key))){
+            APSI_LOG_ERROR("Failed to create SenderDB: terminating")
+            return -1;
+        }
+    }else{
+        reload_from_sender_db = true;
+    }
 
     // 打印bin bundles相关数据
     uint32_t  max_bin_bundles_per_bundle_idx = 0;
@@ -103,7 +141,15 @@ int startSender(){
     APSI_LOG_INFO("SenderDB holds a total of " << sender_db->get_bin_bundle_count() << " ; bin bundles across " << sender_db->get_params().bundle_idx_count() << " bundle indices");
     APSI_LOG_INFO("The largest bundle index holds " << max_bin_bundles_per_bundle_idx << " bin bundles");
 
-    // 存储sender_db
+    // 存储sender_db,如果sdb_output_path参数不为空的话
+    string sdb_output_path = absl::GetFlag(FLAGS_sdb_output_path);
+
+    // 如果数据已经来自sender db文件，忽略保存sender db 的操作
+    if(reload_from_sender_db && !sdb_output_path.empty()){
+        APSI_LOG_WARNING("Ignore save sender db ")
+    }else if(!sdb_output_path.empty() && !try_save_sender_db(sdb_output_path,sender_db,oprf_key)){
+        return -1;
+    }
 
     // 运行服务
     atomic<bool> stop = false;
@@ -113,8 +159,37 @@ int startSender(){
     return 0;
 }
 
+/**
+ * 从SenderDB文件中读取
+ * @param db_path
+ * @param oprf_key
+ * @return
+ */
+shared_ptr<SenderDB> try_load_sender_db(string db_path,OPRFKey &oprf_key){
+    shared_ptr<SenderDB> result = nullptr;
+    ifstream  fs(db_path,ios::binary);
+    fs.exceptions(ios_base::badbit | ios_base::failbit);
+
+    try{
+        auto [data,size] = SenderDB::Load(fs);
+        APSI_LOG_INFO("Loaded SenderDB (" << size <<" bytes) from " << db_path );
+        // 不使用参数中给定的params文件了
+        if(!absl::GetFlag(FLAGS_params_path).empty()){
+            APSI_LOG_WARNING("PSI parameters were loaded with the SenderDB;ignoring given PSI parameters");
+        }
+        result = make_shared<SenderDB>(std::move(data));
+
+        // 加载OPRF key
+        oprf_key.load(fs);
+        APSI_LOG_INFO("Loaded OPRF key (" << oprf_key_size << " bytes) from " << db_path);
+    }catch(const exception &ex){
+        APSI_LOG_WARNING("Failed to load SenderDB: " << ex.what());
+    }
+    return result;
+}
+
 // 从csv中加载db
-shared_ptr<SenderDB> try_load_csv_db(OPRFKey &oprf_key){
+shared_ptr<SenderDB> try_load_csv_db(string db_path,OPRFKey &oprf_key){
     unique_ptr<PSIParams> params = build_psi_param();
     if(!params){
         APSI_LOG_ERROR("Failed to get params");
@@ -236,4 +311,38 @@ shared_ptr<SenderDB> create_sender_db(
     APSI_LOG_INFO("create SenderDb success");
     APSI_LOG_INFO("SenderDB packing rate: " << sender_db->get_packing_rate());
     return sender_db;
+}
+
+
+/**
+ * 保存sender db
+ * @param sdb_output_path
+ * @param sender_db
+ * @param oprf_key
+ * @return
+ */
+bool try_save_sender_db(const string sdb_output_path,shared_ptr<SenderDB> sender_db,const OPRFKey oprf_key){
+    if(!sender_db){
+        return false;
+    }
+    ofstream  fs(sdb_output_path,ios::binary);
+    fs.exceptions(ios_base::badbit|ios_base::failbit);
+    try{
+        // 保存Sender Db
+        size_t size = sender_db->save(fs);
+        APSI_LOG_INFO("Saved SenderDb (" <<size << " bytes) to " << sdb_output_path);
+
+        // 保存OPRF key
+        oprf_key.save(fs);
+
+        APSI_LOG_INFO("Saved OPRF key(" << oprf_key_size << " bytes) to" << sdb_output_path )
+    }catch(const exception &e){
+        APSI_LOG_INFO("Failed to save SenderDb:" << e.what())
+        return false;
+    }
+
+    return true;
+
+
+
 }
