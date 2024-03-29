@@ -21,7 +21,7 @@ message(STATUS "apsi include dir is" ${APSI_INCLUDE_DIRS})
 
 #target_compile_features(common_cli PUBLIC cxx_std_17)
 
-target_link_libraries(receiver_cli PRIVATE absl::log APSI::apsi cppzmq cppzmq-static common_cli)
-target_link_libraries(sender_cli PRIVATE absl::log APSI::apsi cppzmq cppzmq-static common_cli)
+target_link_libraries(receiver_cli PRIVATE absl::log APSI::apsi absl::flags absl::flags_parse cppzmq cppzmq-static common_cli)
+target_link_libraries(sender_cli PRIVATE absl::log absl::flags absl::flags_parse  APSI::apsi  cppzmq cppzmq-static common_cli)
 target_link_libraries(common_cli PUBLIC APSI::apsi)
 #target_link_libraries(main PRIVATE APSI::apsi cppzmq cppzmq-static absl::log absl::base)

@@ -37,7 +37,7 @@ while len(recv_set) < recv_sz:
     recv_set.add(item)
 print('Done creating receiver\'s set')
 
-with open("db.csv", "w") as sender_file:
+with open("labeled_db.csv", "w") as sender_file:
     for (item, label) in sender_list:
         sender_file.write(item + (("," + label) if label_bc != 0 else '') + '\n')
 print('Wrote sender\'s set')
